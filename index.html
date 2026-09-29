@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daybrief">
+<meta name="theme-color" content="#0A0E13">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; manifest-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<base target="_blank">
+<title>Seif Daybrief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --ground:#0A0E13; --panel:#11171F; --panel-2:#161E28; --line:#1F2833; --line-2:#2A3542;
+  --text:#E6EDF3; --muted:#8B98A7; --faint:#5C6A79;
+  --accent:#FFB547; --accent-ink:#1A1204;
+  --ok:#3DD68C; --warn:#FFB547; --crit:#F2545B; --info:#6EA8FE;
+  --display:"Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body:"IBM Plex Sans", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--ground)}
+body{color:var(--text);font:14px/1.45 var(--body);padding-inline:max(16px, env(safe-area-inset-left));padding-block:calc(14px + env(safe-area-inset-top)) calc(40px + env(safe-area-inset-bottom));margin:0;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* Header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.date{font:700 clamp(30px,5vw,46px)/1 var(--display);letter-spacing:.01em;text-transform:uppercase;margin-top:6px;text-wrap:balance}
+.date span{color:var(--accent)}
+.topR{display:flex;align-items:stretch;gap:10px}
+.clock{font:600 30px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--text);letter-spacing:-.01em}
+.now{display:flex;align-items:stretch;border:1px solid var(--line-2);border-radius:12px;background:var(--panel)}
+.now-time,.now-wx{display:flex;flex-direction:column;justify-content:center;padding:9px 16px}
+.now-wx{flex-direction:row;align-items:center;gap:10px;border-left:1px solid var(--line-2)}
+.now-sub{font:500 10.5px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:5px;white-space:nowrap}
+.btn.icon{padding:0;width:46px;justify-content:center;border-radius:12px}
+.btn{appearance:none;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);font:600 12px/1 var(--body);padding:9px 12px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,.chip:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.btn.spin svg{animation:none}}
+
+/* Scoreboard */
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.stat{padding:12px 14px;border-right:1px solid var(--line);min-width:0}
+.stat:last-child{border-right:0}
+.stat .v{font:700 34px/1 var(--display);font-variant-numeric:tabular-nums;margin-top:6px}
+.stat .s{color:var(--muted);font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.hot .v{color:var(--accent)}
+.stat.bad .v{color:var(--crit)}
+@media (max-width:760px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}.stat{border-bottom:1px solid var(--line)}.stat:nth-child(2n){border-right:0}.stat:last-child{grid-column:1/-1;border-bottom:0}}
+
+/* Grid */
+.grid{display:grid;gap:14px;grid-template-columns:minmax(0,1fr);align-items:start}
+@media (min-width:780px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.col-inbox{grid-column:1/-1}}
+@media (min-width:1200px){.grid{grid-template-columns:1.1fr .95fr 1.1fr}.col-inbox{grid-column:auto}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ph h2{margin:0;font:700 19px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:9px;color:var(--tone,var(--text));white-space:nowrap}
+.ph h2 .ico{width:26px;height:26px;border-radius:7px;display:inline-grid;place-items:center;flex:none;background:color-mix(in srgb,var(--tone) 16%,transparent);color:var(--tone);border:1px solid color-mix(in srgb,var(--tone) 35%,transparent)}
+.ph h2 .ico svg{width:15px;height:15px}
+.panel[data-tone]{border-top:2px solid color-mix(in srgb,var(--tone) 70%,transparent)}
+.panel[data-tone] .ph{background:linear-gradient(180deg,color-mix(in srgb,var(--tone) 7%,transparent),transparent)}
+.tone-agenda{--tone:#FFB547}.tone-tmr{--tone:#B69CFF}.tone-rem{--tone:#3DD68C}.tone-notes{--tone:#4DD0E1}.tone-inbox{--tone:#6EA8FE}
+.now-wx .wi{width:30px;height:30px;color:var(--accent);flex:none}
+.now-wx .wt{font:600 30px/1 var(--mono);font-variant-numeric:tabular-nums}
+@media (max-width:760px){.top{align-items:flex-start}.topR{width:100%}.now{flex:1}.now-time,.now-wx{flex:1;padding:9px 12px}.clock,.now-wx .wt{font-size:26px}}
+.ph .meta{font:400 11px/1.2 var(--mono);color:var(--faint);text-align:right}
+.pb{padding:6px 0}
+.sub{font:600 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:12px 14px 6px;display:flex;justify-content:space-between;gap:8px}
+.sub b{color:var(--text);font-weight:600}
+.empty{color:var(--faint);padding:8px 14px 12px;font-size:13px}
+.note{margin:8px 14px 12px;padding:10px 12px;border:1px dashed var(--line-2);border-radius:8px;color:var(--muted);font-size:13px}
+.note strong{color:var(--text)}
+.err{margin:8px 14px 12px;padding:10px 12px;border-radius:8px;background:rgba(242,84,91,.08);border:1px solid rgba(242,84,91,.35);color:#F7A6AA;font-size:13px}
+
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:5px;font:600 10.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:4px 6px;border-radius:5px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+.chip.crit{color:var(--crit);border-color:rgba(242,84,91,.45)}
+.chip.warn{color:var(--warn);border-color:rgba(255,181,71,.45)}
+.chip.ok{color:var(--ok);border-color:rgba(61,214,140,.4)}
+.chip.info{color:var(--info);border-color:rgba(110,168,254,.4)}
+.chip.solid{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.filters{display:flex;gap:6px}
+.filters button{cursor:pointer;background:transparent}
+.filters button[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
+
+/* Agenda */
+.allday{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 4px}
+.allday .chip{text-transform:none;letter-spacing:0;font:500 12px/1 var(--body);padding:6px 8px;color:var(--text)}
+.dot{width:8px;height:8px;border-radius:2px;display:inline-block;flex:none}
+.ev{display:grid;grid-template-columns:86px 4px minmax(0,1fr);gap:0 12px;padding:10px 14px;border-top:1px solid var(--line);text-decoration:none;color:inherit}
+.ev:first-child{border-top:0}
+.ev .t{font:600 13px/1.3 var(--mono);font-variant-numeric:tabular-nums}
+.ev .t small{display:block;color:var(--faint);font-weight:400;font-size:11.5px}
+.ev .bar{border-radius:2px;background:var(--c,var(--muted))}
+.ev .ti{font-weight:600;font-size:14.5px;line-height:1.3;overflow-wrap:anywhere}
+.ev .mt{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;color:var(--muted);font-size:12.5px}
+.ev .mt .loc{overflow-wrap:anywhere}
+.ev.past{opacity:.45}
+.ev.now{background:linear-gradient(90deg,rgba(255,181,71,.10),transparent 70%)}
+.ev a.join{font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;text-decoration:none;padding:5px 8px;border-radius:5px;background:var(--accent);color:var(--accent-ink)}
+.nowline{display:flex;align-items:center;gap:8px;padding:2px 14px;color:var(--accent);font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.nowline::after{content:"";flex:1;height:1px;background:var(--accent);opacity:.6}
+.tmr .ev{grid-template-columns:86px 4px minmax(0,1fr);padding-block:7px}
+.tmr .ev .ti{font-weight:500;font-size:13.5px}
+
+/* Lists */
+.item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 14px;border-top:1px solid var(--line);text-decoration:none;color:inherit}
+.item:first-child{border-top:0}
+a.item:hover{background:var(--panel-2)}
+.item .ic{margin-top:3px;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--faint)}
+.item .ic.crit{border-color:var(--crit)}
+.item .ic.warn{border-color:var(--warn)}
+.item .ic.mail{border-radius:3px}
+.item .ic.unread{background:var(--info);border-color:var(--info)}
+.item .ti{font-weight:500;overflow-wrap:anywhere}
+.item .sm{color:var(--muted);font-size:12.5px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;font:400 11.5px/1.2 var(--mono);color:var(--faint);white-space:nowrap}
+.from{font-weight:600}
+.item.read{opacity:.62}
+.item.read:hover{opacity:1}
+.hiddenbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 14px 10px;color:var(--faint);font-size:12.5px}
+.hiddenbar button{cursor:pointer;background:transparent}
+.skel{height:12px;border-radius:4px;background:linear-gradient(90deg,var(--panel-2),var(--line),var(--panel-2));background-size:200% 100%;animation:sh 1.4s infinite;margin:12px 14px}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+.setup{position:fixed;inset:0;background:var(--ground);display:flex;align-items:center;justify-content:center;padding:24px;z-index:10}
+.setup form{width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+.setup h1{margin:0;font:700 28px/1 var(--display);text-transform:uppercase;letter-spacing:.04em}
+.setup p{margin:0;color:var(--muted);font-size:13px}
+.setup label{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.setup input{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--ground);color:var(--text);font:13px var(--mono)}
+.setup .btn{justify-content:center;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);padding:12px}
+.foot{color:var(--faint);font:400 11px/1.5 var(--mono);text-align:center;padding-top:6px}
+@media (max-width:520px){.ev{grid-template-columns:62px 3px minmax(0,1fr);gap:0 10px}.clock{font-size:22px}}
+</style>
+
+</head>
+<body>
+<div class="setup" id="setup" hidden>
+  <form id="setupForm" autocomplete="off">
+    <h1>Daybrief</h1>
+    <p>One-time setup on this device. Paste the data feed link and your private access key.</p>
+    <label for="apiUrl">Data feed link</label>
+    <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required>
+    <label for="apiKey">Access key</label>
+    <input id="apiKey" type="password" placeholder="dk-…" required>
+    <button class="btn" type="submit">Connect</button>
+    <p id="setupMsg"></p>
+  </form>
+</div>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="greet">Daybrief</div>
+      <div class="date" id="today">—</div>
+    </div>
+    <div class="topR">
+      <div class="now">
+        <div class="now-time">
+          <div class="clock" id="clock">--:--</div>
+          <div class="now-sub" id="place">—</div>
+        </div>
+        <div class="now-wx" id="wx" hidden>
+          <svg class="wi" id="wxIcon" viewBox="0 0 24 24" aria-hidden="true"></svg>
+          <div>
+            <div class="wt" id="wxTemp">–</div>
+            <div class="now-sub" id="wxCond">–</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn icon" id="refresh" type="button" aria-label="Refresh all data" title="Refresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="board" aria-label="Day at a glance">
+    <div class="stat" id="st-meet"><div class="eyebrow">Meetings</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+    <div class="stat hot" id="st-next"><div class="eyebrow">Next up</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+    <div class="stat" id="st-free"><div class="eyebrow">Free time</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+    <div class="stat" id="st-rem"><div class="eyebrow">Reminders due</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+    <div class="stat" id="st-mail"><div class="eyebrow">Unread email</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+  </section>
+
+  <main class="grid">
+    <div class="col">
+      <section class="panel tone-agenda" data-tone aria-labelledby="h-agenda">
+        <div class="ph"><h2 id="h-agenda"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>Today’s agenda</h2><div class="meta" id="m-agenda"></div></div>
+        <div id="allday"></div>
+        <div class="pb" id="agenda"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+      </section>
+      <section class="panel tmr tone-tmr" data-tone aria-labelledby="h-tmr">
+        <div class="ph"><h2 id="h-tmr"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h12M13 6l6 6-6 6"/></svg></span>Tomorrow</h2><div class="meta" id="m-tmr"></div></div>
+        <div class="pb" id="tomorrow"><div class="skel"></div></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel tone-rem" data-tone aria-labelledby="h-rem">
+        <div class="ph"><h2 id="h-rem"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.5L16 9.5"/></svg></span>Reminders</h2><div style="display:flex;align-items:center;gap:10px"><div class="meta" id="m-rem"></div><a class="chip" id="syncRem" href="shortcuts://run-shortcut?name=Dashboard%20Sync" target="_self" title="Run the Dashboard Sync shortcut" style="text-decoration:none">Sync</a></div></div>
+        <div class="pb" id="reminders"><div class="skel"></div><div class="skel"></div></div>
+      </section>
+      <section class="panel tone-notes" data-tone aria-labelledby="h-notes">
+        <div class="ph"><h2 id="h-notes"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/></svg></span>Notes list</h2><div class="meta">Apple Notes</div></div>
+        <div class="pb" id="notes"><div class="skel"></div></div>
+      </section>
+    </div>
+
+    <div class="col col-inbox">
+      <section class="panel tone-inbox" data-tone aria-labelledby="h-inbox">
+        <div class="ph">
+          <h2 id="h-inbox"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>Inbox</h2>
+          <div class="filters" role="group" aria-label="Filter by account">
+            <button class="chip" type="button" data-f="all" aria-pressed="true">All</button>
+            <button class="chip" type="button" data-f="work" aria-pressed="false">Stryx</button>
+            <button class="chip" type="button" data-f="personal" aria-pressed="false">Personal</button>
+          </div>
+        </div>
+        <div id="inbox"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+      </section>
+    </div>
+  </main>
+  <div class="foot" id="foot">Live from Google Calendar, Gmail and your Apple bridge</div>
+</div>
+
+<script>
+(() => {
+  // Time follows the device's time zone (updates automatically when travelling); Dubai as fallback.
+  const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dubai'; } catch (e) { return 'Asia/Dubai'; } })();
+  const OFF = (() => { const m = -new Date().getTimezoneOffset(), a = Math.abs(m); return (m >= 0 ? '+' : '-') + String(Math.floor(a / 60)).padStart(2, '0') + ':' + String(a % 60).padStart(2, '0'); })();
+  const TZ_LABEL = (() => { const m = -new Date().getTimezoneOffset(); return 'GMT' + (m >= 0 ? '+' : '−') + Math.floor(Math.abs(m) / 60) + (Math.abs(m) % 60 ? ':' + String(Math.abs(m) % 60).padStart(2, '0') : ''); })();
+  const ME_RX = /seiftawfik@|tawfik7460@/i;
+  // Calendar names/colours only — the calendar IDs live privately in the Google script (same order).
+  const CALS = [
+    { name: 'Stryx', color: '#FFB547' },
+    { name: 'Gmail', color: '#6EA8FE' },
+    { name: 'Personal', color: '#3DD68C' },
+    { name: 'Masters', color: '#5CC8D8' },
+    { name: 'Birthdays', color: '#F78FB3' },
+    { name: 'UAE holiday', color: '#8B98A7' }
+  ];
+  const WORK_DAY = [8, 20]; // hours used for free-time calculation
+  const Q = {
+    unread: 'in:inbox is:unread -from:me -category:promotions -category:social',
+    today: 'in:inbox -from:me newer_than:1d -category:promotions -category:social',
+    starred: 'is:starred',
+    sent: 'in:sent newer_than:180d'
+  };
+  const BRIDGE = { email: 'seif_bridge_personal_email.json', apple: 'seif_bridge_apple.json' };
+
+  /* ---------- Email filter rules (edit here) ---------- */
+  // Hidden: marketing & promos
+  const PROMO = /(marketing@|newsletter|promo|offers?@|deals?@|news@|happyhour@|@e\.|@email[.-]|@mail\.|@em\.|@info\.|@news\.|@notify\.kayak|marriott|campusespmail|ethrworld|luca-barberis|ritzcarlton)/i;
+  // Hidden: shopping, apps & newsletters (mostly personal inbox)
+  const SHOPPING = /(temu|patreon|pgatour|viya\.ae|whoop\.com|thegrint|ziina|substack|@creator\.|@commerce\.|@action\.|amazon\.|noon\.com|talabat|careem|deliveroo|shein|aliexpress|instashop)/i;
+  // Hidden: Zoho Expense approvals and website enquiry forms
+  const APPROVALS_FORMS = /(zohoexpense\.com|^info@(stryxsports|nbaschooluae|barcaacademydubai)\.com)/i;
+  // Automated senders (kept visible, but never treated as cold outreach)
+  const AUTOMATED = /(no-?reply|donotreply|do-not-reply|notification|alerts?@|mailer|support@|customersuccess@|accountservices@|cash\.management@|@adcb|@mashreq|bankfab|americanexpress|@google\.com)/i;
+  // Domains you work with — never treated as cold outreach
+  const KNOWN_DOMAINS = ['stryxsports.com', 'stryxsportsqa.com', 'stryxgulf.com', 'nbaschooluae.com', 'barcaacademydubai.com', 'nbabasketballschoolqatar.com'];
+  // Personal mailboxes (parents, friends) — never treated as cold outreach
+  const FREEMAIL = /@(gmail|yahoo|hotmail|outlook|icloud|live|me|aol)\./i;
+  const emailOf = s => { const m = String(s || '').match(/<([^>]+)>/); return (m ? m[1] : String(s || '')).trim().toLowerCase(); };
+  const domainOf = e => (e.split('@')[1] || '');
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ymd = (ms = Date.now()) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+  const addDays = (d, n) => { const t = new Date(d + 'T12:00:00' + OFF); t.setUTCDate(t.getUTCDate() + n); return ymd(t.getTime()); };
+  const hm = ms => new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(ms));
+  const dur = min => min < 60 ? `${min}m` : `${Math.floor(min / 60)}h${min % 60 ? ' ' + (min % 60) + 'm' : ''}`;
+  const ago = ms => {
+    const m = Math.round((Date.now() - ms) / 60000);
+    if (m < 1) return 'now'; if (m < 60) return m + 'm';
+    const h = Math.round(m / 60); if (h < 24) return h + 'h';
+    const d = Math.round(h / 24); return d === 1 ? '1d' : d + 'd';
+  };
+  const agoText = ms => { const a = ago(ms); return a === 'now' ? 'just now' : a + ' ago'; };
+  const b64json = b64 => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0))));
+  const joinFrom = s => { const m = String(s || '').match(/https:\/\/[^\s<>"]*(zoom\.us|teams\.microsoft\.com|meet\.google\.com|webex\.com)[^\s<>"]*/i); return m ? m[0] : ''; };
+  const senderName = raw => {
+    const s = String(raw || ''); const m = s.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>/);
+    if (m) return m[1].trim();
+    const email = s.trim(); const [local, dom = ''] = email.split('@');
+    const nice = local.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return /stryxsports/i.test(dom) ? nice : `${nice} · ${dom.replace(/^mail\.|\.(com|ae|org|net|co).*$/g, '')}`;
+  };
+
+  const state = { day: ymd(), events: null, work: null, bridge: null, filter: 'all', showHidden: false, loadedAt: 0 };
+  try { state.filter = localStorage.getItem('db.filter') || 'all'; } catch (e) {}
+
+  function errText(err, server) {
+    const msg = String((err && err.message) || err || '');
+    if (msg === 'not_configured') return 'Connect this device first.';
+    if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return `${server} couldn’t be reached. Check your connection and tap Refresh.`;
+    if (/authoriz|permission/i.test(msg)) return `${server}: access needs approving — open the script and run “test” once.`;
+    if (/Calendar is not defined/i.test(msg)) return 'Google Calendar API isn’t enabled in the script (Services → + → Google Calendar API).';
+    return `${server} couldn’t load${msg ? ' — ' + msg.slice(0, 140) : ''}. Tap Refresh to try again.`;
+  }
+
+  // Auto-update: when Claude publishes a new version, every device reloads itself.
+  const APP_VERSION = '2026-09-29.8';
+  async function checkForUpdate() {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      const v = (await r.json()).version;
+      if (v && v !== APP_VERSION) {
+        // Guard against reload loops: reload at most once per 2 minutes for the same target version.
+        let last = {}; try { last = JSON.parse(sessionStorage.getItem('daybrief.reload') || '{}'); } catch (e) {}
+        if (last.v === v && Date.now() - last.t < 120000) return;
+        try { sessionStorage.setItem('daybrief.reload', JSON.stringify({ v, t: Date.now() })); } catch (e) {}
+        location.reload();
+      }
+    } catch (e) {}
+  }
+  checkForUpdate(); setInterval(checkForUpdate, 30 * 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+
+  /* ---------- Weather (Open-Meteo, no key needed) ---------- */
+  // Weather follows the device's location (asked once); falls back to the last known place, then Dubai.
+  const WX_DEFAULT = { name: 'Dubai', lat: 25.2048, lon: 55.2708 };
+  let WX_PLACE = WX_DEFAULT;
+  try { const saved = JSON.parse(localStorage.getItem('daybrief.place') || 'null'); if (saved && saved.lat) WX_PLACE = saved; } catch (e) {}
+  function devicePosition() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(p => resolve(p.coords), () => resolve(null),
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 30 * 60000 });
+    });
+  }
+  async function placeName(lat, lon) {
+    try {
+      const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+      const g = await r.json();
+      return g.city || g.locality || g.principalSubdivision || g.countryName || '';
+    } catch (e) { return ''; }
+  }
+  async function updatePlace() {
+    const c = await devicePosition();
+    if (!c) return false;
+    const moved = Math.abs(c.latitude - WX_PLACE.lat) > 0.05 || Math.abs(c.longitude - WX_PLACE.lon) > 0.05;
+    if (!moved && WX_PLACE.name && WX_PLACE !== WX_DEFAULT) return false;
+    const name = (await placeName(c.latitude, c.longitude)) || 'Current location';
+    WX_PLACE = { name, lat: +c.latitude.toFixed(3), lon: +c.longitude.toFixed(3) };
+    try { localStorage.setItem('daybrief.place', JSON.stringify(WX_PLACE)); } catch (e) {}
+    return true;
+  }
+  const WX_ICONS = {
+    sun: '<circle cx="12" cy="12" r="4.2" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/>',
+    part: '<circle cx="9" cy="9" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 2.5v1.6M2.5 9h1.6M4.4 4.4l1.1 1.1M13.6 4.4l-1.1 1.1"/></g><path d="M8 20h9a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8 14a3 3 0 0 0 0 6z" fill="#8B98A7"/>',
+    cloud: '<path d="M7 19h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 12.5 3.3 3.3 0 0 0 7 19z" fill="#8B98A7"/>',
+    fog: '<g stroke="#8B98A7" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M3 13h18M5 17h14"/></g>',
+    rain: '<path d="M7 14h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 7.5 3.3 3.3 0 0 0 7 14z" fill="#8B98A7"/><g stroke="#6EA8FE" stroke-width="2" stroke-linecap="round"><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/></g>',
+    storm: '<path d="M7 13h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 6.5 3.3 3.3 0 0 0 7 13z" fill="#8B98A7"/><path d="M12.5 13l-2.5 4h3l-2 4.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    dust: '<g stroke="#D9B07A" stroke-width="2" stroke-linecap="round"><path d="M3 9h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 17h8"/></g>'
+  };
+  function wxDescribe(code, isDay) {
+    if (code === 0) return [isDay ? 'sun' : 'moon', 'Clear'];
+    if (code <= 2) return [isDay ? 'part' : 'cloud', code === 1 ? 'Mostly clear' : 'Partly cloudy'];
+    if (code === 3) return ['cloud', 'Cloudy'];
+    if (code === 45 || code === 48) return ['fog', 'Fog'];
+    if (code >= 95) return ['storm', 'Thunderstorm'];
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return ['rain', code >= 80 ? 'Showers' : 'Rain'];
+    return ['cloud', 'Overcast'];
+  }
+  async function loadWeather() {
+    try {
+      const q = new URLSearchParams({ latitude: WX_PLACE.lat, longitude: WX_PLACE.lon, timezone: TZ, forecast_days: '2',
+        current: 'temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m',
+        daily: 'temperature_2m_max,temperature_2m_min,uv_index_max,weather_code' });
+      const r = await fetch('https://api.open-meteo.com/v1/forecast?' + q, { cache: 'no-store' });
+      const w = await r.json(), c = w.current, d = w.daily;
+      const [icon, label] = wxDescribe(c.weather_code, c.is_day);
+      $('#wxIcon').innerHTML = WX_ICONS[icon];
+      $('#wxTemp').textContent = Math.round(c.temperature_2m) + '°';
+      $('#wxCond').textContent = `${label} · H ${Math.round(d.temperature_2m_max[0])}° L ${Math.round(d.temperature_2m_min[0])}°`;
+      $('#wx').title = `${WX_PLACE.name}: ${label}, feels like ${Math.round(c.apparent_temperature)}° · humidity ${c.relative_humidity_2m}% · UV ${Math.round(d.uv_index_max[0])} · wind ${Math.round(c.wind_speed_10m)} km/h`;
+      tickHeader();
+      $('#wx').hidden = false;
+      state.wxTomorrow = { max: Math.round(d.temperature_2m_max[1]), min: Math.round(d.temperature_2m_min[1]), label: wxDescribe(d.weather_code[1], 1)[1] };
+      const mt = $('#m-tmr'); if (mt && state.events) renderCalendar();
+    } catch (e) { /* weather is optional — keep the header clean if it fails */ }
+  }
+
+  // Private data feed (Apps Script). Link + key are stored on this device only.
+  const CFG_KEY = 'daybrief.cfg';
+  let cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch (e) {}
+  async function api(section, params = {}, fresh = false) {
+    if (!cfg) throw new Error('not_configured');
+    const q = new URLSearchParams({ key: cfg.key, section, ...params, ...(fresh ? { fresh: '1' } : {}), t: Date.now() });
+    let body = null, lastErr = null;
+    for (let attempt = 0; attempt < 2 && !body; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
+      try {
+        const res = await fetch(`${cfg.url}?${q}`, { redirect: 'follow', cache: 'no-store' });
+        const text = await res.text();
+        try { body = JSON.parse(text); }
+        catch (e) {
+          const m = text.match(/<title>([^<]*)<\/title>/i);
+          lastErr = new Error('Google was busy and sent a page instead of data' + (m && m[1].trim() && !/^google/i.test(m[1].trim()) ? ` (${m[1].trim()})` : ''));
+        }
+      } catch (e) { lastErr = e; }
+    }
+    if (!body) throw lastErr || new Error('No response');
+    if (!body.ok) { if (body.error === 'unauthorised') showSetup('That access key was not accepted.'); throw new Error(body.error || 'error'); }
+    return body.data;
+  }
+  function showSetup(msg) {
+    $('#setup').hidden = false;
+    $('#setupMsg').textContent = msg || '';
+    if (cfg) { $('#apiUrl').value = cfg.url || ''; }
+  }
+
+  /* ---------- Calendar ---------- */
+  function normEvent(e, cal) {
+    if (!e || e.status === 'cancelled') return null;
+    const me = (e.attendees || []).find(a => a.self);
+    if (me && me.responseStatus === 'declined') return null;
+    const allDay = !!(e.start && e.start.date);
+    const start = allDay ? e.start.date : e.start && e.start.dateTime;
+    const end = allDay ? (e.end && e.end.date) : e.end && e.end.dateTime;
+    if (!start) return null;
+    return {
+      cal, allDay, start, end,
+      s: allDay ? null : Date.parse(start), e: allDay ? null : Date.parse(end || start),
+      title: e.summary || '(Busy)', location: e.location || '',
+      join: e.conferenceUrl || e.hangoutLink || joinFrom((e.location || '') + ' ' + (e.description || '')),
+      link: e.htmlLink || '', rsvp: me ? me.responseStatus : null,
+      people: (e.attendees || []).filter(a => !a.resource && !a.self).length
+    };
+  }
+  async function loadCalendar(fresh) {
+    const d0 = state.day, d2 = addDays(d0, 2);
+    const res = await api('calendar', { start: `${d0}T00:00:00${OFF}`, end: `${d2}T00:00:00${OFF}` }, fresh);
+    const seen = new Set(), all = [], failed = [], why = [];
+    res.forEach((r, i) => {
+      if (r.error) { failed.push(CALS[i].name); why.push(`${CALS[i].name}: ${r.error}`); return; }
+      r.events.map(e => normEvent(e, CALS[i])).filter(Boolean).forEach(ev => {
+        const k = ev.title.trim().toLowerCase() + '|' + (ev.allDay ? ev.start : ev.s);
+        if (!seen.has(k)) { seen.add(k); all.push(ev); }
+      });
+    });
+    if (failed.length === CALS.length) throw new Error(res[0].error);
+    return { all, failed, why };
+  }
+  const onDay = (ev, d) => ev.allDay ? (ev.start <= d && d < (ev.end || addDays(ev.start, 1))) : ymd(ev.s) === d;
+
+  function renderEvent(ev, now, flags) {
+    const past = ev.e <= now, live = ev.s <= now && ev.e > now;
+    const mins = Math.round((ev.e - ev.s) / 60000);
+    const bits = [];
+    if (live) bits.push('<span class="chip solid">Now</span>');
+    else if (flags.next) bits.push(`<span class="chip warn">In ${esc(dur(Math.max(1, Math.round((ev.s - now) / 60000))))}</span>`);
+    if (flags.conflict) bits.push('<span class="chip crit">Overlap</span>');
+    if (ev.rsvp === 'needsAction' || ev.rsvp === 'tentative') bits.push(`<span class="chip info">${ev.rsvp === 'tentative' ? 'Tentative' : 'RSVP'}</span>`);
+    bits.push(`<span class="chip"><i class="dot" style="background:${ev.cal.color}"></i>${esc(ev.cal.name)}</span>`);
+    if (ev.people) bits.push(`<span>${ev.people} guest${ev.people > 1 ? 's' : ''}</span>`);
+    if (ev.location && !/^https?:/i.test(ev.location)) bits.push(`<span class="loc">${esc(ev.location)}</span>`);
+    if (ev.join && !past) bits.push(`<a class="join" href="${esc(ev.join)}" target="_blank" rel="noopener">Join</a>`);
+    return `<div class="ev${past ? ' past' : ''}${live ? ' now' : ''}" style="--c:${ev.cal.color}">
+      <div class="t">${hm(ev.s)}<small>${hm(ev.e)} · ${dur(mins)}</small></div><div class="bar"></div>
+      <div><a class="ti" href="${esc(ev.link)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(ev.title)}</a><div class="mt">${bits.join('')}</div></div></div>`;
+  }
+
+  function renderCalendar() {
+    const cal = state.events; const now = Date.now(); const d = state.day, t = addDays(d, 1);
+    if (cal && cal.error) {
+      $('#agenda').innerHTML = `<div class="err">${esc(cal.error)}</div>`; $('#tomorrow').innerHTML = ''; $('#allday').innerHTML = '';
+      setStat('#st-meet', '—', 'Calendar unavailable'); setStat('#st-next', '—', ''); setStat('#st-free', '—', ''); return;
+    }
+    if (!cal) return;
+    const today = cal.all.filter(e => onDay(e, d));
+    const allDay = today.filter(e => e.allDay);
+    const timed = today.filter(e => !e.allDay).sort((a, b) => a.s - b.s);
+    $('#allday').innerHTML = allDay.length ? `<div class="allday">${allDay.map(e => `<span class="chip"><i class="dot" style="background:${e.cal.color}"></i>${esc(e.title)}</span>`).join('')}</div>` : '';
+    const conflicts = new Set();
+    for (let i = 0; i < timed.length; i++) for (let j = i + 1; j < timed.length; j++) if (timed[j].s < timed[i].e && timed[i].s < timed[j].e) { conflicts.add(timed[i]); conflicts.add(timed[j]); }
+    const next = timed.find(e => e.s > now);
+    let html = '', lineDone = false;
+    timed.forEach(ev => {
+      if (!lineDone && ev.s > now) { html += `<div class="nowline">${hm(now)}</div>`; lineDone = true; }
+      html += renderEvent(ev, now, { next: ev === next, conflict: conflicts.has(ev) });
+    });
+    if (timed.length && !lineDone) html += `<div class="nowline">${hm(now)} · day’s meetings done</div>`;
+    $('#agenda').innerHTML = timed.length ? html : '<div class="empty">No timed meetings today — a clear runway.</div>';
+    $('#m-agenda').textContent = cal.failed.length ? `Missing: ${cal.failed.join(', ')}` : `${CALS.length} calendars`;
+    $('#m-agenda').title = (cal.why || []).join('\n');
+
+    const tmr = cal.all.filter(e => onDay(e, t));
+    const tTimed = tmr.filter(e => !e.allDay).sort((a, b) => a.s - b.s);
+    const tAll = tmr.filter(e => e.allDay);
+    $('#tomorrow').innerHTML = (tAll.length ? `<div class="allday">${tAll.map(e => `<span class="chip"><i class="dot" style="background:${e.cal.color}"></i>${esc(e.title)}</span>`).join('')}</div>` : '') +
+      (tTimed.length ? tTimed.map(ev => `<div class="ev" style="--c:${ev.cal.color}"><div class="t">${hm(ev.s)}<small>${dur(Math.round((ev.e - ev.s) / 60000))}</small></div><div class="bar"></div><div><a class="ti" href="${esc(ev.link)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(ev.title)}</a></div></div>`).join('') : '<div class="empty">Nothing scheduled yet.</div>');
+    const wxT = state.wxTomorrow ? `${state.wxTomorrow.label} ${state.wxTomorrow.max}°/${state.wxTomorrow.min}°` : '';
+    $('#m-tmr').textContent = [tTimed.length ? `${tTimed.length} meeting${tTimed.length > 1 ? 's' : ''} · first ${hm(tTimed[0].s)}` : '', wxT].filter(Boolean).join(' · ');
+
+    // Stats
+    const remaining = timed.filter(e => e.e > now).length;
+    setStat('#st-meet', timed.length, timed.length ? `${remaining} remaining${conflicts.size ? ' · ' + conflicts.size + ' overlapping' : ''}` : 'None today');
+    const live = timed.find(e => e.s <= now && e.e > now);
+    if (live) setStat('#st-next', 'Now', `${live.title} · until ${hm(live.e)}`);
+    else if (next) setStat('#st-next', hm(next.s), `${next.title} · in ${dur(Math.round((next.s - now) / 60000))}`);
+    else setStat('#st-next', '—', 'Nothing else today');
+    // Free time within the working window, from now onward
+    const ws = Math.max(now, Date.parse(`${d}T${String(WORK_DAY[0]).padStart(2, '0')}:00:00${OFF}`));
+    const we = Date.parse(`${d}T${WORK_DAY[1]}:00:00${OFF}`);
+    let free = 0, best = null, cur = ws;
+    timed.filter(e => e.e > ws && e.s < we).forEach(e => {
+      if (e.s > cur) { const g = e.s - cur; free += g; if (!best || g > best[1] - best[0]) best = [cur, e.s]; }
+      cur = Math.max(cur, e.e);
+    });
+    if (we > cur) { const g = we - cur; free += g; if (!best || g > best[1] - best[0]) best = [cur, we]; }
+    const fm = Math.max(0, Math.round(free / 60000));
+    setStat('#st-free', fm ? dur(fm) : '0m', best && best[1] - best[0] >= 1800000 ? `Longest block ${hm(best[0])}–${hm(best[1])}` : `Until ${WORK_DAY[1]}:00`);
+  }
+
+  /* ---------- Gmail (Stryx) ---------- */
+  function normThread(t, acct) {
+    const msgs = (t && t.messages) || []; if (!msgs.length) return null;
+    const when = m => Number(m.internalDate) || Date.parse(m.date) || 0;
+    const sorted = [...msgs].sort((a, b) => when(a) - when(b));
+    const last = sorted[sorted.length - 1]; const first = sorted.find(m => m.subject) || sorted[0];
+    const others = sorted.filter(m => !ME_RX.test(m.sender || ''));
+    const latestIn = others[others.length - 1] || last;
+    const labels = new Set(msgs.flatMap(m => m.labelIds || []));
+    const participants = new Set(msgs.flatMap(m => [m.sender, ...(m.toRecipients || []), ...(m.ccRecipients || [])]).map(emailOf).filter(Boolean));
+    return {
+      id: t.id, acct, subject: first.subject || '(no subject)', snippet: latestIn.snippet || first.snippet || '',
+      from: latestIn.sender || '', fromMe: ME_RX.test(last.sender || ''), date: when(latestIn),
+      unread: msgs.some(m => (m.labelIds || []).includes('UNREAD')), starred: labels.has('STARRED'),
+      direct: (latestIn.toRecipients || []).some(r => ME_RX.test(r)),
+      iReplied: sorted.some(m => ME_RX.test(m.sender || '')),
+      colleagueOnThread: [...participants].some(e => !ME_RX.test(e) && KNOWN_DOMAINS.includes(domainOf(e))),
+      url: t.viewUrl || last.viewUrl || '', count: msgs.length
+    };
+  }
+
+  // Returns a reason string when a thread should be hidden, otherwise ''.
+  function hideReason(t, known) {
+    const from = emailOf(t.from), dom = domainOf(from);
+    if (APPROVALS_FORMS.test(from)) return 'Approvals & forms';
+    if (PROMO.test(from)) return 'Promos';
+    if (SHOPPING.test(from)) return 'Shopping & newsletters';
+    const cold = !AUTOMATED.test(from) && !FREEMAIL.test(from) && !KNOWN_DOMAINS.includes(dom) &&
+      !t.iReplied && !t.colleagueOnThread && !(known && (known.emails.has(from) || known.domains.has(dom)));
+    if (cold) return 'Cold outreach';
+    return '';
+  }
+
+  async function loadWork(fresh) {
+    const w = await api('work', {}, fresh);
+    const unreadIds = new Set(w.unread.map(t => t.id));
+    const today = w.today.filter(t => !unreadIds.has(t.id) && ymd(t.date) === state.day && !t.fromMe);
+    [...w.unread, ...today].forEach(t => { t.hidden = hideReason(t, null); });
+    return { unread: w.unread, today, starred: w.starred };
+  }
+
+  /* ---------- Apple + personal Gmail bridge (Drive) ---------- */
+  async function loadBridge() {
+    return api('bridge', {}, true);
+  }
+  const normPersonal = x => ({
+    id: x.id, acct: 'personal', subject: x.subject || '(no subject)', snippet: x.snippet || '', from: x.from || '',
+    fromMe: !!x.fromMe, date: Date.parse(x.date) || 0, unread: !!x.unread, starred: !!x.starred, action: false,
+    direct: x.direct !== false, iReplied: !!x.iReplied, colleagueOnThread: !!x.knownSender,
+    url: x.url || '', count: x.count || 1
+  });
+
+  /* ---------- Render: reminders / notes / actions ---------- */
+  // Accepts ISO dates ("2026-10-17T14:00:00+04:00") and Apple's display formats
+  // ("17 Oct 2026 at 2:00 PM", "Oct 17, 2026 at 14:00"). Returns {ms, hasTime} in Dubai time.
+  const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+  function parseDue(raw) {
+    const s = String(raw || '').replace(/[  ]/g, ' ').trim();
+    if (!s) return { ms: NaN, hasTime: false };
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { ms: Date.parse(s + 'T23:59:00' + OFF), hasTime: false };
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return { ms: Date.parse(s), hasTime: true };
+    let d, mo, y;
+    let m = s.match(/(\d{1,2})\s+([A-Za-z]{3,})\.?,?\s+(\d{4})/);
+    if (m) { d = +m[1]; mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; y = +m[3]; }
+    else if ((m = s.match(/([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})/))) { mo = MONTHS[m[1].slice(0, 3).toLowerCase()]; d = +m[2]; y = +m[3]; }
+    else if ((m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/))) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+    if (!d || !mo || !y) { const t = Date.parse(s); return { ms: t, hasTime: !isNaN(t) }; }
+    const t = s.match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/);
+    let hh = 23, mm = 59, hasTime = false;
+    if (t) {
+      hh = +t[1]; mm = +t[2]; hasTime = true;
+      if (t[3]) { const pm = /p/i.test(t[3]); if (pm && hh < 12) hh += 12; if (!pm && hh === 12) hh = 0; }
+    }
+    const pad = n => String(n).padStart(2, '0');
+    return { ms: Date.parse(`${y}-${pad(mo)}-${pad(d)}T${pad(hh)}:${pad(mm)}:00${OFF}`), hasTime };
+  }
+  const unwrap = v => String(v || '').trim().replace(/^\[(.*)\]$/s, '$1').trim();
+  function parseReminders(raw) {
+    if (Array.isArray(raw)) return raw;
+    return String(raw || '').split(/\n+/).map(l => l.trim()).filter(Boolean).map(l => {
+      const [title, due, list, priority, flagged] = l.split('|||').map(unwrap);
+      return { title, due, list, priority: /^none$/i.test(priority) ? '' : priority, flagged: /^(1|true|yes)$/i.test(flagged || '') };
+    }).filter(r => r.title);
+  }
+  function renderApple() {
+    const b = state.bridge;
+    if (!b) return;
+    if (b.error) { ['#reminders', '#notes'].forEach(s => $(s).innerHTML = `<div class="err">${esc(b.error)}</div>`); setStat('#st-rem', '—', 'Bridge unavailable'); return; }
+    const a = b.apple;
+    if (!a) {
+      const setup = `<div class="note"><strong>Not connected yet.</strong> Run the “Dashboard Sync” Apple Shortcut once and your reminders appear here.</div>`;
+      $('#reminders').innerHTML = setup; $('#notes').innerHTML = `<div class="note">Create a note titled <strong>Dashboard Tasks</strong> in Apple Notes — the same Shortcut sends it here.</div>`;
+      setStat('#st-rem', '—', 'Apple bridge not set up'); $('#m-rem').textContent = ''; return;
+    }
+    const now = Date.now(), d = state.day, soon = addDays(d, 4);
+    const items = parseReminders(a.reminders).map(r => {
+      const { ms, hasTime } = parseDue(r.due);
+      const day = isNaN(ms) ? null : ymd(ms);
+      return { ...r, ms, day, hasTime: hasTime && !isNaN(ms) };
+    });
+    const overdue = items.filter(r => r.day && (r.day < d || (r.day === d && r.hasTime && r.ms < now))).sort((x, y) => x.ms - y.ms);
+    const today = items.filter(r => r.day === d && !overdue.includes(r)).sort((x, y) => x.ms - y.ms);
+    const upcoming = items.filter(r => r.day && r.day > d && r.day < soon).sort((x, y) => x.ms - y.ms);
+    const flagged = items.filter(r => r.flagged && !overdue.includes(r) && !today.includes(r) && !upcoming.includes(r));
+    const later = items.filter(r => r.day && r.day >= soon && !r.flagged).sort((x, y) => x.ms - y.ms);
+    const undated = items.filter(r => !r.day && !r.flagged);
+    const row = (r, tone) => {
+      const when = r.day ? (r.day === d ? (r.hasTime ? hm(r.ms) : 'Today') : new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(r.ms)) + (r.hasTime ? ' ' + hm(r.ms) : '')) : '';
+      return `<div class="item"><span class="ic ${tone}"></span><div><div class="ti">${esc(r.title)}</div>${r.list ? `<div class="sm">${esc(r.list)}</div>` : ''}</div><div class="rt">${esc(when)}${r.flagged ? '<span class="chip warn">Flagged</span>' : ''}${/^(1|high|!!!)$/i.test(r.priority || '') ? '<span class="chip crit">High</span>' : ''}</div></div>`;
+    };
+    const group = (label, arr, tone) => arr.length ? `<div class="sub">${label}<b>${arr.length}</b></div>${arr.slice(0, 12).map(r => row(r, tone)).join('')}` : '';
+    const html = group('Overdue', overdue, 'crit') + group('Today', today, 'warn') + group('Next 3 days', upcoming, '') + group('Flagged', flagged, 'warn') + group('Later', later, '') + group('No date', undated, '');
+    $('#reminders').innerHTML = html || '<div class="empty">Nothing due. Clean slate.</div>';
+    const age = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+    $('#m-rem').innerHTML = age ? `Synced ${esc(agoText(age))}${now - age > 3 * 3600000 ? ' <span class="chip warn">Stale</span>' : ''}` : '';
+    setStat('#st-rem', overdue.length + today.length, overdue.length ? `${overdue.length} overdue · ${today.length} today` : `${today.length} today · ${upcoming.length} next 3 days`, overdue.length ? 'bad' : '');
+    const lines = (/^\s*(body|text|notes)\s*$/i.test(a.notes || '') ? '' : String(a.notes || '')).split(/\n+/).map(s => s.replace(/^[\s•\-*◦▢☐☑✓✔]+|^\[( |x)\]\s*/gi, '').trim()).filter(Boolean);
+    const body = lines[0] && /dashboard tasks/i.test(lines[0]) ? lines.slice(1) : lines;
+    $('#notes').innerHTML = body.length ? body.slice(0, 14).map(l => `<div class="item"><span class="ic"></span><div class="ti">${esc(l)}</div><div></div></div>`).join('') : '<div class="empty">The “Dashboard Tasks” note is empty.</div>';
+  }
+
+  function mailRow(t, opts = {}) {
+    const chips = [];
+    chips.push(`<span class="chip ${t.acct === 'work' ? 'warn' : 'info'}">${t.acct === 'work' ? 'Stryx' : 'Personal'}</span>`);
+    if (t.starred) chips.push('<span class="chip warn">Starred</span>');
+    if (opts.extra) chips.push(`<span class="chip">${esc(opts.extra)}</span>`);
+    return `<a class="item${opts.grey ? ' read' : ''}" href="${esc(t.url)}" target="_blank" rel="noopener"><span class="ic mail ${t.unread ? 'unread' : ''}"></span>
+      <div><div class="ti"><span class="from">${esc(senderName(t.from))}</span> — ${esc(t.subject)}</div><div class="sm">${esc(t.snippet)}</div></div>
+      <div class="rt">${esc(ago(t.date))}${chips.join('')}</div></a>`;
+  }
+  function renderMail() {
+    const w = state.work, b = state.bridge;
+    if (!w && !b) return;
+    const pe = b && b.email;
+    const pUnread = pe ? (pe.unread || []).map(normPersonal).map(t => ({ ...t, unread: true })) : [];
+    const pUnreadIds = new Set(pUnread.map(t => t.id));
+    const pToday = pe ? (pe.today || []).map(normPersonal).filter(t => !pUnreadIds.has(t.id) && !t.fromMe && ymd(t.date) === state.day) : [];
+    [...pUnread, ...pToday].forEach(t => { t.hidden = hideReason(t, null); });
+    const personal = { unread: pUnread, today: pToday, starred: pe ? (pe.starred || []).map(normPersonal) : [] };
+    const work = w && !w.error ? w : { unread: [], today: [], starred: [] };
+    const f = state.filter;
+    const keep = t => f === 'all' || t.acct === f;
+    const byDate = (a, c) => c.date - a.date;
+    const all = [...work.unread, ...work.today, ...personal.unread, ...personal.today].filter(keep).sort(byDate);
+    const shown = all.filter(t => !t.hidden), hidden = all.filter(t => t.hidden);
+    // 1. Unread (all time, addressed to you)  2. Today  3. Starred  4. CC'd (greyed)
+    const unread = shown.filter(t => t.unread && t.direct);
+    const today = shown.filter(t => !t.unread && t.direct);
+    const listed = new Set([...unread, ...today].map(t => t.acct + t.id));
+    const starred = [...work.starred, ...personal.starred].filter(keep).filter(t => !listed.has(t.acct + t.id)).sort(byDate);
+    const cc = shown.filter(t => !t.direct && !starred.some(s => s.acct === t.acct && s.id === t.id));
+    const section = (label, items, empty, opts, max) => `<div class="sub">${label}<b>${items.length}</b></div>` +
+      (items.length ? items.slice(0, max).map(t => mailRow(t, opts)).join('') + (items.length > max ? `<div class="empty">+ ${items.length - max} more in Gmail</div>` : '') : `<div class="empty">${empty}</div>`);
+    let html = '';
+    if (w && w.error && f !== 'personal') html += `<div class="err">${esc(w.error)}</div>`;
+    if (b && b.error && f !== 'work') html += `<div class="err">${esc(b.error)}</div>`;
+    if (!pe && f !== 'work' && b && !b.error) html += `<div class="note"><strong>Personal Gmail not connected yet.</strong> The personal bridge script hasn’t sent data yet.</div>`;
+    html += section('Unread', unread, 'All caught up — nothing unread addressed to you.', {}, 25);
+    html += section('Today', today, 'No other emails to you today.', {}, 15);
+    html += section('Starred', starred, 'No starred emails.', {}, 15);
+    html += section('You’re copied', cc, 'Nothing copied to you.', { grey: true }, 15);
+    if (hidden.length) {
+      const reasons = {}; hidden.forEach(t => { reasons[t.hidden] = (reasons[t.hidden] || 0) + 1; });
+      const summary = Object.entries(reasons).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(' · ');
+      html += `<div class="sub">Filtered out<b>${hidden.length}</b></div><div class="hiddenbar"><span>${esc(summary)}</span><button class="chip" type="button" id="toggleHidden" aria-expanded="${state.showHidden ? 'true' : 'false'}">${state.showHidden ? 'Hide' : 'Show'}</button></div>`;
+      if (state.showHidden) html += hidden.slice(0, 25).map(t => mailRow(t, { grey: true, extra: t.hidden })).join('');
+    }
+    if (pe && pe.updatedAt) html += `<div class="foot" style="padding:8px 14px 12px;text-align:left">Personal inbox synced ${esc(agoText(Date.parse(pe.updatedAt)))}${typeof pe.inboxUnread === 'number' ? ` · ${pe.inboxUnread} unread overall` : ''}</div>`;
+    $('#inbox').innerHTML = html;
+    const th = $('#toggleHidden'); if (th) th.addEventListener('click', () => { state.showHidden = !state.showHidden; renderMail(); });
+    const wU = work.unread.filter(t => !t.hidden && t.direct).length, pU = pUnread.filter(t => !t.hidden && t.direct).length;
+    setStat('#st-mail', wU + pU, `${wU} Stryx · ${pe ? pU + ' personal' : 'personal pending'}`, wU + pU > 5 ? 'hot' : '');
+  }
+
+  function setStat(sel, v, s, tone) {
+    const el = $(sel); el.querySelector('.v').textContent = v; el.querySelector('.s').textContent = s || ' ';
+    el.classList.remove('bad', 'hot'); if (sel === '#st-next') el.classList.add('hot'); if (tone) el.classList.add(tone);
+  }
+
+  /* ---------- Clock & header ---------- */
+  function tickHeader() {
+    const now = new Date();
+    $('#clock').textContent = hm(now.getTime());
+    const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }).format(now));
+    $('#greet').textContent = (h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening') + ', Seif';
+    $('#place').textContent = `${WX_PLACE.name || 'Dubai'} · ${TZ_LABEL}`;
+    try { if (Intl.DateTimeFormat().resolvedOptions().timeZone !== TZ) location.reload(); } catch (e) {}
+    const parts = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' }).formatToParts(now);
+    const wd = parts.find(p => p.type === 'weekday').value, dm = parts.filter(p => p.type === 'day' || p.type === 'month').map(p => p.value).join(' ');
+    $('#today').innerHTML = `${esc(wd)} <span>${esc(dm)}</span>`;
+    if (ymd() !== state.day) { state.day = ymd(); loadAll(true); }
+  }
+
+  /* ---------- Load orchestration ---------- */
+  let loading = false;
+  async function loadAll(fresh) {
+    if (loading) return; loading = true;
+    const btn = $('#refresh'); btn.classList.add('spin'); btn.disabled = true;
+    const jobs = [
+      loadCalendar(fresh).then(v => { state.events = v; }, e => { if (!state.events || state.events.error) state.events = { error: errText(e, 'Google Calendar') }; }).then(renderCalendar),
+      loadWork(fresh).then(v => { state.work = v; }, e => { if (!state.work || state.work.error) state.work = { error: errText(e, 'Stryx Gmail') }; else state.work.stale = errText(e, 'Stryx Gmail'); }).then(renderMail),
+      loadBridge(fresh).then(v => { state.bridge = v; }, e => { if (!state.bridge || state.bridge.error) state.bridge = { error: errText(e, 'Reminders & personal inbox') }; }).then(() => { renderApple(); renderMail(); })
+    ];
+    await Promise.allSettled(jobs);
+    state.loadedAt = Date.now();
+    $('#foot').textContent = `Updated ${hm(state.loadedAt)} · Google Calendar, Stryx Gmail, personal Gmail and Apple Reminders`;
+    btn.classList.remove('spin'); btn.disabled = false; loading = false;
+  }
+
+  let rechecking = false;
+  async function recheckBridge() {
+    if (document.hidden || rechecking || loading) return;
+    rechecking = true;
+    const before = state.bridge && state.bridge.apple && state.bridge.apple.updatedAt;
+    try {
+      const v = await loadBridge(true);
+      if (v && v.apple && v.apple.updatedAt !== before) { state.bridge = v; renderApple(); renderMail(); }
+    } catch (e) { /* keep what is on screen */ }
+    rechecking = false;
+  }
+  function setFilter(f) {
+    state.filter = f; try { localStorage.setItem('db.filter', f); } catch (e) {}
+    document.querySelectorAll('.filters button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === f)));
+    renderMail();
+  }
+  document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.f)));
+  document.querySelectorAll('.filters button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === state.filter)));
+  $('#refresh').addEventListener('click', () => loadAll(true));
+  // Background reloads use the server's 5-minute snapshot; the Refresh button asks for live data.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) return; if (Date.now() - state.loadedAt > 5 * 60000) loadAll(false); else recheckBridge(); [8000, 20000, 45000].forEach(ms => setTimeout(recheckBridge, ms)); });
+  window.addEventListener('focus', () => { recheckBridge(); setTimeout(recheckBridge, 8000); });
+
+  tickHeader(); setInterval(() => { tickHeader(); if (state.events && !state.events.error) renderCalendar(); if (state.bridge && !state.bridge.error) renderApple(); }, 30000);
+  setInterval(() => { if (!document.hidden) loadAll(false); }, 5 * 60000);
+
+  $('#setupForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const url = $('#apiUrl').value.trim().replace(/\s+/g, '').replace(/\/(dev|exec)?[?#].*$/, '/exec'), key = $('#apiKey').value.trim();
+    $('#setupMsg').textContent = 'Checking…';
+    try {
+      const r = await fetch(`${url}?${new URLSearchParams({ key, t: Date.now() })}`, { redirect: 'follow', cache: 'no-store' });
+      const b = await r.json();
+      if (!b.ok) { $('#setupMsg').textContent = 'That access key was not accepted.'; return; }
+      cfg = { url, key }; try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {}
+      $('#setup').hidden = true; loadAll(true);
+    } catch (e) { $('#setupMsg').textContent = 'Google didn’t let the app in. In Apps Script, check the deployment’s “Who has access” is set to “Anyone” (not “Anyone within Stryx Sports”), then try again.'; }
+  });
+  if (location.hash === '#reset') { try { localStorage.removeItem(CFG_KEY); } catch (e) {} cfg = null; history.replaceState(null, '', location.pathname); }
+  loadWeather(); updatePlace().then(changed => { if (changed) loadWeather(); });
+  setInterval(() => updatePlace().then(() => loadWeather()), 30 * 60000);
+  if (!cfg) showSetup();
+  else { loadAll(false); [10000, 25000, 60000].forEach(ms => setTimeout(recheckBridge, ms)); }
+})();
+</script>
+
+</body>
+</html>
